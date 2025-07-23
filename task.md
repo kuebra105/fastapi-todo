@@ -45,12 +45,126 @@ fastapi-todo/
    def read_root():
       return {"message": "Welcome to the FastAPI ToDo App!"}
 
-6. Write a Basic README.md which describes
-   - what the project does
-   - how to install dependencies
-   - how to run the API
+## Part 2: Implement the ToDo API
 
-   
+### ToDo Model (`models/todo.py`)
 
+Define a `ToDo` model using Pydantic:
 
+```python
+from pydantic import BaseModel, Field
+from typing import Optional
+from uuid import UUID
+
+class ToDo(BaseModel):
+    id: UUID
+    title: str = Field(..., min_length=3, max_length=100)
+    description: Optional[str] = None
+    done: bool = False
+```
+
+Also create a `ToDoCreate` model (no `id`):
+
+```python
+class ToDoCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+```
+---
+### In-Memory Storage (`core/storage.py`)
+
+Use a dictionary to store tasks temporarily:
+
+```python
+from uuid import UUID
+from typing import Dict
+from app.models.todo import ToDo
+
+storage: Dict[UUID, ToDo] = {}
+```
+
+### API Routes (`routes/todos.py`)
+
+Implement the following endpoints:
+
+| Method | Path               | Description                   |
+|--------|--------------------|-------------------------------|
+| GET    | `/todos`           | List all tasks                |
+| GET    | `/todos/{id}`      | Get task by ID                |
+| POST   | `/todos`           | Create new task               |
+| PUT    | `/todos/{id}`      | Update existing task          |
+| DELETE | `/todos/{id}`      | Delete task                   |
+| GET    | `/todos/search`    | Filter tasks by `done: bool`  |
+
+- use `HTTPException` for error handling when a task is not found.
+- Add a timestamp (e.g. created_at) to each task
+- Sort tasks by title or date
+---
+### Register Routes (`main.py`)
+
+```python
+from fastapi import FastAPI
+from app.routes import todos
+
+app = FastAPI(title="ToDo API")
+
+app.include_router(todos.router, prefix="/todos", tags=["ToDos"])
+```
+---
+## Part 3: Config via Environment Variables
+### 📄 `.env` file
+```env
+APP_NAME=ToDo Manager
+DEBUG=true
+```
+
+### Load Settings (`dependencies/config.py`)
+
+```python
+from pydantic import BaseSettings
+
+class Settings(BaseSettings):
+    app_name: str = "ToDo App"
+    debug: bool = False
+
+    class Config:
+        env_file = ".env"
+```
+
+Use it in routes or endpoints:
+
+```python
+from fastapi import Depends
+from app.dependencies.config import Settings
+
+@app.get("/info")
+def get_info(settings: Settings = Depends()):
+    return {"app_name": settings.app_name, "debug": settings.debug}
+```
+---
+## Part 4: Testing
+Create unit tests using `pytest` in `tests/test_todos.py`.
+Start with:
+- Creating a new task
+- Retrieving a task
+- Deleting a task
+- Handling errors (e.g., task not found)
+
+Example:
+```python
+from fastapi.testclient import TestClient
+from app.main import app
+
+client = TestClient(app)
+
+def test_create_todo():
+    response = client.post("/todos", json={"title": "Test Task"})
+    assert response.status_code == 200
+    assert "id" in response.json()
+```
+---
+## Part 5: Documentation
+- Access Swagger UI at: [`/docs`](http://localhost:8000/docs)
+In your `README.md`, explain:
+- How to run the API
    
