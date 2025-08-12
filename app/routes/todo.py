@@ -4,6 +4,7 @@ from fastapi import HTTPException, APIRouter
 from pydantic import UUID4
 from app.models.todo import ToDo, ToDoCreate
 
+
 router = APIRouter()
 todos: list[ToDo] = []
 
@@ -65,5 +66,5 @@ def update_task(task_id: UUID4, updated_task: ToDo):
 def delete_task(task_id: UUID4):
     task_to_delete = next((t for t in todos if t.id == task_id), None)
     if task_to_delete is None:
-        raise HTTPException(status_code=404, detail="Task not found — nothing to see here.")
+        raise HTTPException(status_code=404, detail="Task not found — nothing to delete here.")
     todos.remove(task_to_delete)
