@@ -25,15 +25,10 @@ def create_task(task: ToDoCreate):
     todos.append(task_output)
     return task_output
 
-@router.get("/", response_model=list[ToDo])
-def get_all_tasks():
-    return todos
-
-@router.get("/{id}", response_model=ToDo)
-def get_id_task(task_id: UUID4):
-    task_to_see = next((t for t in todos if t.id == task_id), None)
-    if task_to_see is None:
-        raise HTTPException(status_code=404, detail="Task not found — nothing to see here.")
+@router.get("/search", response_model=list[ToDo])
+def get_task_by_done(done: bool = False) -> list[ToDo]:
+    done_tasks = [t for t in todos if t.done == done]
+    return done_tasks
 
 @router.get("/sorted_by_title", response_model=list[ToDo])
 def get_tasks_sorted_by_title():
@@ -43,10 +38,16 @@ def get_tasks_sorted_by_title():
 def get_tasks_sorted_by_date():
     return sorted(todos, key=lambda t: t.created_at)
 
-@router.get("/search", response_model=list[ToDo])
-def get_task_by_done(done: bool = False) -> list[ToDo]:
-    done_tasks = [t for t in todos if t.done == done]
-    return done_tasks
+@router.get("/{id}", response_model=ToDo)
+def get_id_task(task_id: UUID4):
+    task_to_see = next((t for t in todos if t.id == task_id), None)
+    if task_to_see is None:
+        raise HTTPException(status_code=404, detail="Task not found — nothing to see here.")
+    return task_to_see
+
+@router.get("/", response_model=list[ToDo])
+def get_all_tasks():
+    return todos
 
 @router.put("/{id}", response_model=ToDo)
 def update_task(task_id: UUID4, updated_task: ToDo):
