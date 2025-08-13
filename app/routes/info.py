@@ -10,7 +10,13 @@ SettingsDep = Annotated[Settings, Depends(lambda: settings_instance)]
 
 @router.get("/info")
 def get_info(settings: SettingsDep):
-    return {
-        "app_name": settings.app_name,
-        "debug": settings.debug
-    }
+    """
+    Returns basic application information from the settings.
+
+    Args:
+        settings (Settings): injected settings dependency
+
+    Returns:
+        dict: dictionary containing the application name and debug status
+    """
+    return {"app_name": settings.app_name, "debug": settings.debug}
