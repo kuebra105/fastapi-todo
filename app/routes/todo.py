@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 from fastapi import HTTPException, APIRouter
 from pydantic import UUID4
-from app.models.todo import ToDo, ToDoCreate
+from app.models.todo import ToDo, ToDoCreate, ToDoUpdate
 
 
 router = APIRouter()
@@ -40,8 +40,8 @@ def get_tasks_sorted_by_date():
     return sorted(todos, key=lambda t: t.created_at)
 
 @router.get("/{id}", response_model=ToDo)
-def get_id_task(task_id: UUID4):
-    task_to_see = next((t for t in todos if t.id == task_id), None)
+def get_id_task(id: UUID4):
+    task_to_see = next((t for t in todos if t.id == id), None)
     if task_to_see is None:
         raise HTTPException(status_code=404, detail="Task not found — nothing to see here.")
     return task_to_see
@@ -51,20 +51,19 @@ def get_all_tasks():
     return todos
 
 @router.put("/{id}", response_model=ToDo)
-def update_task(task_id: UUID4, updated_task: ToDo):
-    if not any(t.id == task_id for t in todos):
+def update_task(id: UUID4, updated_task: ToDoUpdate):
+    if not any(t.id == id for t in todos):
         raise HTTPException(status_code=404, detail="Task not found - there is nothing to update.")
     for task in todos:
-        if task.id == task_id:
-            task.id = updated_task.id
+        if task.id == id:
             task.title = updated_task.title
             task.description = updated_task.description
             task.done = updated_task.done
-            return updated_task
+            return task
 
 @router.delete("/{id}")
-def delete_task(task_id: UUID4):
-    task_to_delete = next((t for t in todos if t.id == task_id), None)
+def delete_task(id: UUID4):
+    task_to_delete = next((t for t in todos if t.id == id), None)
     if task_to_delete is None:
         raise HTTPException(status_code=404, detail="Task not found — nothing to delete here.")
     todos.remove(task_to_delete)
