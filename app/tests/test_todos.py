@@ -9,6 +9,10 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def clear_todos():
+    """
+    Fixture that clears the in-memory ToDo list before each test. This ensures that each test runs isolated with a clean state.
+    It empties the global 'todos' list.
+    """
     from app.routes.todo import todos
     todos.clear()
 
@@ -17,6 +21,14 @@ client = TestClient(app)
 
 
 def test_create_todo():
+    """
+    Tests successful creation of a ToDo task.
+
+    Asserts:
+        - status code is 200
+        - Response contains valid ToDo fields
+        - task is marked as not done
+    """
     response: Response = client.post("/todos", json={"title": "Test Task", "description": "This task will be created."}) # what the response should include
     assert response.status_code == 200 # assert: issue if condition is not ture
     # data: ToDoResponse = response.json()
@@ -28,12 +40,27 @@ def test_create_todo():
     assert "created_at" in data
 
 def test_FAIL_create_todo():
+    """
+    Tests failure when creating a task with a duplicate title.
+
+    Asserts:
+        - status code is 400
+        - error message indicates duplicate title
+    """
     _ = client.post("/todos", json={"title": "Test Task", "description": "First creation."})
     response: Response = client.post("/todos", json={"title": "Test Task", "description": "Second creation."}) # what the response should include
     assert response.status_code == 400 # assert: issue if condition is not ture  
     assert response.json()["detail"] == "Task title already exists."
 
 def test_get_all_tasks(): 
+    """
+    Tests retrieval of all created tasks.
+
+    Asserts:
+        - status code is 200
+        - Response is a list of tasks
+        - all created task titles are present
+    """
     _ = client.post("/todos", json={"title": "Task 1", "description": "First task"})
     _ = client.post("/todos", json={"title": "Task 2", "description": "Second task"})
     response: Response = client.get("/todos")
@@ -47,6 +74,13 @@ def test_get_all_tasks():
     assert "Task 2" in titles
 
 def test_id_task():
+    """
+    Tests retrieval of a task by its ID.
+
+    Asserts:
+        - status code is 200
+        - returned task matches the created ID and title
+    """
     create_response: Response = client.post("/todos", json={"title": "Test Task", "description": "This task will be created."}) # task must be created to test get_id_task()
     created_task = cast(ToDoResponse, create_response.json())
     id = created_task["id"] # extract the ID from the JSON, that's the ID needed to test the GET-route
@@ -58,12 +92,27 @@ def test_id_task():
     assert data["title"] == "Test Task"
 
 def test_FAIL_id_task():
+    """
+    Tests failure when retrieving a task with a non-existent ID.
+
+    Asserts:
+        - etatus code is 404
+        - error message indicates task not found
+    """
     id = str(uuid4())  # gültige UUID4, aber nicht in der Liste
     response: Response = client.get(f"/todos/{id}")
     assert response.status_code == 404
     assert response.json()["detail"] == "Task not found — nothing to see here."
 
 def test_get_tasks_sorted_by_date():
+    """
+    Tests sorting of tasks by creation date.
+
+    Asserts:
+        - status code is 200
+        - tasks are returned in the order they were created
+    """
+
     _ = client.post("/todos", json={"title": "Task 1", "description": "First task"})
     _ = client.post("/todos", json={"title": "Task 2", "description": "Second task"})
     response: Response = client.get("/todos/sorted_by_date")
@@ -77,6 +126,13 @@ def test_get_tasks_sorted_by_date():
     assert second_task == "Task 2"
 
 def test_get_tasks_sorted_by_title():
+    """
+    Tests sorting of tasks alphabetically by title.
+
+    Asserts:
+        - status code is 200
+        - tasks are sorted by title in ascending order
+    """
     _ = client.post("/todos", json={"title": "Task B", "description": "B task"})
     _ = client.post("/todos", json={"title": "Task A", "description": "A task"})
     response: Response = client.get("/todos/sorted_by_title")
@@ -90,6 +146,14 @@ def test_get_tasks_sorted_by_title():
     assert second_task == "Task B"
 
 def test_get_task_by_done():
+    """
+    Tests filtering tasks by completion status.
+
+    Asserts:
+        - status code is 200
+        - only completed tasks are returned
+        - task marked as done is included in the result
+    """
     done = client.post("/todos", json={"title": "Task 1", "description": "Task is done."})
     _ = client.post("/todos", json={"title": "Task 2", "description": "Task is not done."})
     created_task = cast(ToDoResponse, done.json())
@@ -105,6 +169,13 @@ def test_get_task_by_done():
     assert data[0]["done"] == True
 
 def test_update_task():
+    """
+    Tests updating an existing task.
+
+    Asserts:
+        - status code is 200
+        - task fields are updated correctly
+    """
     create_response = client.post("/todos", json={"title": "Test Task", "description": "This task will be created."})
     created_task = cast(ToDoResponse, create_response.json())
     id = created_task["id"] 
@@ -118,12 +189,26 @@ def test_update_task():
     assert data["done"] is False
 
 def test_FAIL_update_task():
+    """
+    Tests failure when updating a non-existent task.
+
+    Asserts:
+        - status code is 404
+        - rrror message indicates task not found
+    """
     id = str(uuid4())
     response: Response = client.put(f"/todos/{id}", json={"id": id, "title": "Nonexistent Task", "description": "This task does not exist.", "done": False})
     assert response.status_code == 404
     assert response.json()["detail"] == "Task not found - there is nothing to update."
 
 def test_delete_task():
+    """
+    Tests deletion of an existing task.
+
+    Asserts:
+        - status code is 200
+        - task is no longer retrievable after deletion
+    """
     create_response = client.post("/todos", json={"title": "Test Task", "description": "This task will be created."})
     created_task = cast(ToDoResponse, create_response.json())
     task_id = created_task["id"]
@@ -134,6 +219,13 @@ def test_delete_task():
     assert get_response.json()["detail"] == "Task not found — nothing to see here."
 
 def test_FAIL_delete_task():
+    """
+    Tests failure when deleting a non-existent task.
+
+    Asserts:
+        - status code is 404
+        - error message indicates task not found
+    """
     id = str(uuid4())
     response: Response = client.delete(f"/todos/{id}")
     assert response.status_code == 404
