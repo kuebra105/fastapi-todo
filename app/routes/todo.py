@@ -6,7 +6,7 @@ from app.models.todo import ToDo, ToDoCreate, ToDoUpdate
 
 
 router = APIRouter()
-todos: list[ToDo] = []
+todos: dict[UUID4, ToDo] = {}
 
 def get_time():    
     """
@@ -32,20 +32,21 @@ def create_task(task: ToDoCreate):
     Raises:
         HTTPException: if a task with the same title already exists
     """
-    if any(t.title == task.title for t in todos):
+    task_id = uuid4()
+    if any(t.title == task.title for t in todos.values()):
         raise HTTPException(status_code=400, detail="Task title already exists.")
     task_output = ToDo(
-        id = uuid4(),
+        id = task_id,
         title = task.title,
         description = task.description,
         done = False,
         created_at = get_time()
     )
-    todos.append(task_output)
+    todos[task_id] = task_output
     return task_output
 
 @router.get("/search", response_model=list[ToDo])
-def get_task_by_done(done: bool = False) -> list[ToDo]:
+def get_task_by_done(done: bool = False):
     """
     Returns a list of tasks filtered by completion status.
 
@@ -55,7 +56,7 @@ def get_task_by_done(done: bool = False) -> list[ToDo]:
     Returns:
         list[ToDo]: list of filtered tasks
     """
-    done_tasks = [t for t in todos if t.done == done]
+    done_tasks = [t for t in todos.values() if t.done == done]
     return done_tasks
 
 @router.get("/sorted_by_title", response_model=list[ToDo])
@@ -66,7 +67,7 @@ def get_tasks_sorted_by_title():
     Returns:
         list[ToDo]: list of tasks sorted by title
     """
-    return sorted(todos, key=lambda t: t.title.lower())
+    return sorted(todos.values(), key=lambda t: t.title.lower())
 
 @router.get("/sorted_by_date", response_model=list[ToDo])
 def get_tasks_sorted_by_date(): 
@@ -76,7 +77,7 @@ def get_tasks_sorted_by_date():
     Returns:
         list[ToDo]: list of tasks sorted by creation timestamp
     """
-    return sorted(todos, key=lambda t: t.created_at)
+    return sorted(todos.values(), key=lambda t: t.created_at)
 
 @router.get("/{id}", response_model=ToDo)
 def get_id_task(id: UUID4):
@@ -92,9 +93,9 @@ def get_id_task(id: UUID4):
     Raises:
         HTTPException: if the task is not found
     """
-    task_to_see = next((t for t in todos if t.id == id), None)
+    task_to_see = todos.get(id)
     if task_to_see is None:
-        raise HTTPException(status_code=404, detail="Task not found — nothing to see here.")
+        raise HTTPException(status_code=404, detail="Task not found - nothing to see here.")
     return task_to_see
 
 @router.get("/", response_model=list[ToDo])
@@ -105,7 +106,7 @@ def get_all_tasks():
     Returns:
         list[ToDo]: list of all tasks
     """
-    return todos
+    return list(todos.values())
 
 @router.put("/{id}", response_model=ToDo)
 def update_task(id: UUID4, updated_task: ToDoUpdate): 
@@ -122,14 +123,13 @@ def update_task(id: UUID4, updated_task: ToDoUpdate):
     Raises:
         HTTPException: if the task is not found
     """
-    if not any(t.id == id for t in todos):
-        raise HTTPException(status_code=404, detail="Task not found - there is nothing to update.")
-    for task in todos:
-        if task.id == id:
-            task.title = updated_task.title
-            task.description = updated_task.description
-            task.done = updated_task.done
-            return task
+    task = todos.get(id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found - nothing to see here.")
+    task.title = updated_task.title
+    task.description = updated_task.description
+    task.done = updated_task.done
+    return task
 
 @router.delete("/{id}")
 def delete_task(id: UUID4):
@@ -142,7 +142,6 @@ def delete_task(id: UUID4):
     Raises:
         HTTPException: if the task is not found
     """
-    task_to_delete = next((t for t in todos if t.id == id), None)
+    task_to_delete = todos.pop(id, None)
     if task_to_delete is None:
-        raise HTTPException(status_code=404, detail="Task not found — nothing to delete here.")
-    todos.remove(task_to_delete)
+        raise HTTPException(status_code=404, detail="Task not found - nothing to see here.")
