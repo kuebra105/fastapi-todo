@@ -167,4 +167,3 @@ def test_create_todo():
 - Access Swagger UI at: [`/docs`](http://localhost:8000/docs)
 In your `README.md`, explain:
 - How to run the API
-   
