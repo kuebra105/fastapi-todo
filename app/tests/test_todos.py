@@ -25,7 +25,6 @@ T = TypeVar("T")
 def validate_response(response: Response, model: type[T]) -> T:
     return TypeAdapter(model).validate_python(response.json())
 
-
 def test_create_todo():
     """
     Tests successful creation of a ToDo task.
