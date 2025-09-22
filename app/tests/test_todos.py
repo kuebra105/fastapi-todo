@@ -1,17 +1,18 @@
 from app.main import app
 from fastapi.testclient import TestClient
 from httpx import Response
-from typing import cast
 from app.models.todo import ToDoResponse
 from uuid import uuid4
+from pydantic import TypeAdapter
+from typing import TypeVar
 import pytest
 
 
 @pytest.fixture(autouse=True)
 def clear_todos():
     """
-    Fixture that clears the in-memory ToDo list before each test. This ensures that each test runs isolated with a clean state.
-    It empties the global 'todos' list.
+    Fixture that clears the in-memory ToDo dict before each test. This ensures that each test runs isolated with a clean state.
+    It empties the global 'todos' dict.
     """
     from app.routes.todo import todos
     todos.clear()
@@ -19,6 +20,10 @@ def clear_todos():
 
 client = TestClient(app)
 
+
+T = TypeVar("T")
+def validate_response(response: Response, model: type[T]) -> T:
+    return TypeAdapter(model).validate_python(response.json())
 
 def test_create_todo():
     """
@@ -31,15 +36,14 @@ def test_create_todo():
     """
     response: Response = client.post("/todos", json={"title": "Test Task", "description": "This task will be created."}) # what the response should include
     assert response.status_code == 200 # assert: issue if condition is not ture
-    # data: ToDoResponse = response.json()
-    data = cast(ToDoResponse, response.json())
+    data = validate_response(response, ToDoResponse)
     assert "id" in data
     assert data["title"] == "Test Task"
     assert data["description"] == "This task will be created."
     assert data["done"] is False
     assert "created_at" in data
 
-def test_FAIL_create_todo():
+def test_create_todo_duplicate_title_returns_400():
     """
     Tests failure when creating a task with a duplicate title.
 
@@ -66,7 +70,7 @@ def test_get_all_tasks():
     response: Response = client.get("/todos")
     assert response.status_code == 200
     # data: list[ToDoResponse] = response.json()
-    data = cast(list[ToDoResponse], response.json())
+    data = validate_response(response, list[ToDoResponse])
     assert isinstance(data, list)
     assert len(data) == 2
     titles = [task["title"] for task in data]
@@ -82,16 +86,15 @@ def test_id_task():
         - returned task matches the created ID and title
     """
     create_response: Response = client.post("/todos", json={"title": "Test Task", "description": "This task will be created."}) # task must be created to test get_id_task()
-    created_task = cast(ToDoResponse, create_response.json())
+    created_task = validate_response(create_response, ToDoResponse)
     id = created_task["id"] # extract the ID from the JSON, that's the ID needed to test the GET-route
     response: Response = client.get(f"/todos/{id}") # testing with the extracted ID
     assert response.status_code == 200
-    # data: ToDoResponse = response.json()
-    data = cast(ToDoResponse, response.json())
+    data = validate_response(response, ToDoResponse)
     assert data["id"] == id
     assert data["title"] == "Test Task"
 
-def test_FAIL_id_task():
+def test_get_todo_with_nonexistent_id_returns_404():
     """
     Tests failure when retrieving a task with a non-existent ID.
 
@@ -102,7 +105,7 @@ def test_FAIL_id_task():
     id = str(uuid4())  # gültige UUID4, aber nicht in der Liste
     response: Response = client.get(f"/todos/{id}")
     assert response.status_code == 404
-    assert response.json()["detail"] == "Task not found — nothing to see here."
+    assert response.json()["detail"] == "Task not found - nothing to see here."
 
 def test_get_tasks_sorted_by_date():
     """
@@ -118,7 +121,7 @@ def test_get_tasks_sorted_by_date():
     response: Response = client.get("/todos/sorted_by_date")
     assert response.status_code == 200
     # data: list[ToDoResponse] = response.json()
-    data = cast(list[ToDoResponse], response.json())
+    data = validate_response(response, list[ToDoResponse])
     assert len(data) == 2
     first_task = data[0]["title"]
     second_task = data[1]["title"]
@@ -138,7 +141,7 @@ def test_get_tasks_sorted_by_title():
     response: Response = client.get("/todos/sorted_by_title")
     assert response.status_code == 200
     # data: list[ToDoResponse] = response.json()
-    data = cast(list[ToDoResponse], response.json())
+    data = validate_response(response, list[ToDoResponse])
     assert len(data) == 2
     first_task = data[0]["title"]
     second_task = data[1]["title"]
@@ -156,13 +159,13 @@ def test_get_task_by_done():
     """
     done = client.post("/todos", json={"title": "Task 1", "description": "Task is done."})
     _ = client.post("/todos", json={"title": "Task 2", "description": "Task is not done."})
-    created_task = cast(ToDoResponse, done.json())
+    created_task = validate_response(done, ToDoResponse)
     task_id = created_task["id"]
-    _ = client.put(f"/todos/{task_id}", json={"id": task_id, "title": "Task 1", "description": "Task is done.", "done": True})
+    _ = client.put(f"/todos/{task_id}", json={"title": "Task 1", "description": "Task is done.", "done": True})
     response: Response = client.get("/todos/search?done=true")
     assert response.status_code == 200
     # data: list[ToDoResponse] = response.json()
-    data = cast(list[ToDoResponse], response.json())
+    data = validate_response(response, list[ToDoResponse])
     assert len(data) == 1
     done_task = data[0]["title"]
     assert done_task == "Task 1"
@@ -177,18 +180,18 @@ def test_update_task():
         - task fields are updated correctly
     """
     create_response = client.post("/todos", json={"title": "Test Task", "description": "This task will be created."})
-    created_task = cast(ToDoResponse, create_response.json())
+    created_task = validate_response(create_response, ToDoResponse)
     id = created_task["id"] 
     response: Response = client.put(f"/todos/{id}", json={"title": "Test Task", "description": "This task will be delayed.", "done": False})
     assert response.status_code == 200
     # data: ToDoResponse = response.json()
-    data = cast(ToDoResponse, response.json())
+    data = validate_response(response, ToDoResponse)
     assert data["id"] == id
     assert data["title"] == "Test Task"
     assert data["description"] == "This task will be delayed."
     assert data["done"] is False
 
-def test_FAIL_update_task():
+def test_update_nonexistent_todo_returns_404():
     """
     Tests failure when updating a non-existent task.
 
@@ -197,9 +200,9 @@ def test_FAIL_update_task():
         - rrror message indicates task not found
     """
     id = str(uuid4())
-    response: Response = client.put(f"/todos/{id}", json={"id": id, "title": "Nonexistent Task", "description": "This task does not exist.", "done": False})
+    response: Response = client.put(f"/todos/{id}", json={"title": "Nonexistent Task", "description": "This task does not exist.", "done": False})
     assert response.status_code == 404
-    assert response.json()["detail"] == "Task not found - there is nothing to update."
+    assert response.json()["detail"] == "Task not found - nothing to see here."
 
 def test_delete_task():
     """
@@ -210,15 +213,15 @@ def test_delete_task():
         - task is no longer retrievable after deletion
     """
     create_response = client.post("/todos", json={"title": "Test Task", "description": "This task will be created."})
-    created_task = cast(ToDoResponse, create_response.json())
+    created_task = validate_response(create_response, ToDoResponse)
     task_id = created_task["id"]
     response: Response = client.delete(f"/todos/{task_id}")
     assert response.status_code == 200
     get_response = client.get(f"/todos/{task_id}")
     assert get_response.status_code == 404
-    assert get_response.json()["detail"] == "Task not found — nothing to see here."
+    assert get_response.json()["detail"] == "Task not found - nothing to see here."
 
-def test_FAIL_delete_task():
+def test_delete_nonexistent_todo_returns_404():
     """
     Tests failure when deleting a non-existent task.
 
@@ -229,4 +232,4 @@ def test_FAIL_delete_task():
     id = str(uuid4())
     response: Response = client.delete(f"/todos/{id}")
     assert response.status_code == 404
-    assert response.json()["detail"] == "Task not found — nothing to delete here."
+    assert response.json()["detail"] == "Task not found - nothing to see here."
